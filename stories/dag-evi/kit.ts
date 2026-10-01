@@ -36,6 +36,9 @@ export const kit = createStoryKit({
     cikolata: 'Bir kalıp çikolata',
     termos: 'Termos',
     ozan_batonu: 'Ozan’ın kırık batonu',
+    // @esya-gun2-3 (Gün 2–3 yazarı yeni eşyaları bu satırın altına ekler)
+    // @esya-gun4-5
+    // @esya-gun6-7
   },
   flags: {
     // Gün 1 — ilk temas ve ilişki
@@ -67,6 +70,10 @@ export const kit = createStoryKit({
     ozan_bulundu: 'Ozan’a ulaşıldı',
     helikopter_goruldu: 'Kurtarma helikopteri görüldü',
     ekip_temas: 'Kurtarma ekibiyle temas kuruldu',
+    // @bayrak-gun1 (Gün 1 editörü yeni bayrakları bu satırın altına ekler)
+    // @bayrak-gun2-3
+    // @bayrak-gun4-5
+    // @bayrak-gun6-7
   },
 });
 

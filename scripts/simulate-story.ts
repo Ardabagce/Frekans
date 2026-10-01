@@ -37,6 +37,7 @@ for (const story of playableStories()) {
   const outcomes = new Map<string, number>();
   const errors: string[] = [];
   const firstSession: number[] = [];
+  const toEnding: number[] = [];
   const statRange: Record<string, [number, number]> = {};
   let lockedSeen = 0;
 
@@ -71,6 +72,7 @@ for (const story of playableStories()) {
     const p = run.pending;
     const key = p.kind === 'ending' ? `son:${p.ending}` : p.kind === 'draft' ? `taslak:${p.nodeId}` : `${p.kind}:${p.nodeId}`;
     outcomes.set(key, (outcomes.get(key) ?? 0) + 1);
+    if (p.kind === 'ending') toEnding.push((new Date(p.at).setHours(0, 0, 0, 0) - new Date(startedAt).setHours(0, 0, 0, 0)) / 86_400_000 + 1);
     if (p.kind === 'error') errors.push(`[oyun ${i}] ${p.reason}`);
     const longAway = run.aways.find((a) => a.to - a.from >= HOUR);
     if (longAway) firstSession.push(longAway.from - startedAt);
@@ -89,6 +91,10 @@ for (const story of playableStories()) {
     console.log(
       `  İlk oturum (ilk ≥1 saatlik araya kadar): en kısa ${formatSpan(Math.min(...firstSession))}, ortanca ${formatSpan(median(firstSession))}, en uzun ${formatSpan(Math.max(...firstSession))}`,
     );
+  }
+  if (toEnding.length) {
+    const s = [...toEnding].sort((a, b) => a - b);
+    console.log(`  Sona kadar takvim günü: en az ${s[0]}, ortanca ${s[Math.floor(s.length / 2)]}, en çok ${s[s.length - 1]}${s[0]! < 7 ? '  ⚠ 7 günden kısa oyun var' : ''}`);
   }
   console.log(`  Görülen kilitli seçenek sayısı: ${lockedSeen}`);
   console.log(`  Değer aralıkları (oyun sonu): ${Object.entries(statRange).map(([k, [a, b]]) => `${k} ${a}–${b}`).join(', ')}`);

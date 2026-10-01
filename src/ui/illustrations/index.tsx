@@ -18,6 +18,13 @@ export const ILLUSTRATIONS = {
   'karli-pencere': KarliPencereIllustration,
   soba: SobaIllustration,
   'dag-silueti': DagSiluetiIllustration,
+  // GEÇİCİ: illüstratör kendi çizimleriyle değiştirecek
+  'ozan-cantasi': KarliPencereIllustration,
+  'sos-isareti': DagSiluetiIllustration,
+  helikopter: DagSiluetiIllustration,
+  'not-kagidi': KarliPencereIllustration,
+  'coban-kulubesi': DagSiluetiIllustration,
+  'sirt-sinyal': DagSiluetiIllustration,
 } satisfies Record<IllustrationId, ComponentType<IllustrationProps>>;
 
 /** Fotoğraf balonlarının en/boy oranı */

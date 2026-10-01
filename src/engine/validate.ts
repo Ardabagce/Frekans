@@ -5,6 +5,7 @@
 import { ILLUSTRATION_IDS } from '@/ui/illustrations/ids';
 
 import { isValidClock } from './calendar';
+import { startOfLocalDay } from '@/lib/time';
 import { DAY, formatSpan, isValidDuration } from './duration';
 import { scheduleFrom, TIMING, type RunState } from './runtime';
 import { initialVars } from './state';
@@ -180,6 +181,7 @@ export function reachable(story: Story): Set<string> {
 // ---------------------------------------------------------------------------
 
 export type PlaytimeEstimate = {
+  startAt: number;
   startClock: string;
   /** Son kimliği → başlangıçtan en erken varış (ms) */
   endings: Record<string, number>;
@@ -246,7 +248,7 @@ export function estimatePlaytime(story: Story, startAt: number): PlaytimeEstimat
   }
   const d = new Date(startAt);
   const startClock = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-  return { startClock, endings, firstDraft, dayStarts, firstSessionMs };
+  return { startAt, startClock, endings, firstDraft, dayStarts, firstSessionMs };
 }
 
 export function describeEstimate(e: PlaytimeEstimate): string[] {
@@ -257,10 +259,12 @@ export function describeEstimate(e: PlaytimeEstimate): string[] {
   for (const [id, ms] of ends) lines.push(`  Son "${id}": en erken +${formatSpan(ms)}`);
   if (ends.length) {
     const min = ends[0]![1];
+    // "7 gün": oyun 7 ayrı takvim gününe yayılmalı (1. gün başlangıç, 7. gün son)
+    const calendarDays = Math.round((startOfLocalDay(e.startAt + min) - startOfLocalDay(e.startAt)) / DAY) + 1;
     lines.push(
-      min >= 7 * DAY
-        ? `  ✓ En kısa yol 7 günden uzun (${formatSpan(min)})`
-        : `  ⚠ En kısa yol 7 günden kısa (${formatSpan(min)})${e.firstDraft ? ' — taslak düğümler süresiz sayıldı' : ''}`,
+      calendarDays >= 7
+        ? `  ✓ En kısa yol ${calendarDays} takvim gününe yayılıyor (${formatSpan(min)})`
+        : `  ⚠ En kısa yol yalnızca ${calendarDays} takvim günü (${formatSpan(min)}); en az 7 olmalı${e.firstDraft ? ' — taslak düğümler süresiz sayıldı' : ''}`,
     );
   }
   if (e.firstDraft) lines.push(`  Yazılmamış ilk düğüm: ${e.firstDraft.node} (+${formatSpan(e.firstDraft.ms)})`);
