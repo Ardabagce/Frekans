@@ -17,7 +17,10 @@ export type ChatRow =
 /** Aynı göndericiden gelen ardışık mesajlar bu süre içindeyse aynı gruba girer */
 export const GROUP_WINDOW_MS = 5 * 60_000;
 
-function continuesGroup(prev: ChatMessage | undefined, msg: ChatMessage): boolean {
+export function continuesGroup(
+  prev: Pick<ChatMessage, 'sender' | 'at'> | undefined,
+  msg: Pick<ChatMessage, 'sender' | 'at'>,
+): boolean {
   if (!prev) return false;
   if (prev.sender === 'system' || msg.sender === 'system') return false;
   if (prev.sender !== msg.sender) return false;

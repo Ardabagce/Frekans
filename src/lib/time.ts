@@ -62,12 +62,11 @@ export function formatLongDate(ts: number): string {
   return `${d.getDate()} ${MONTHS_TR[d.getMonth()]} ${d.getFullYear()}`;
 }
 
-/** Sohbetteki tarih ayracı: "Bugün", "Dün", son bir hafta için gün adı, daha eskisi için tam tarih */
+/** Sohbetteki tarih ayracı: "Bugün", "Dün", daha eskisi için tam tarih ("29 Eylül 2026") */
 export function formatDateSeparator(ts: number, now: number): string {
   const diff = calendarDayDiff(ts, now);
   if (diff <= 0) return 'Bugün';
   if (diff === 1) return 'Dün';
-  if (diff < 7) return WEEKDAYS_TR[new Date(ts).getDay()] ?? formatLongDate(ts);
   return formatLongDate(ts);
 }
 

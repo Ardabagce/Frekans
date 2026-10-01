@@ -1,13 +1,22 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { useIncomingAlerts } from '@/game/alerts';
+import { requestPersistentStorage } from '@/game/storage';
 import { ThemeProvider, useTheme } from '@/theme/ThemeProvider';
 import { APP_MAX_WIDTH } from '@/ui/layout';
 
 function Shell() {
   const { palette } = useTheme();
+  useIncomingAlerts();
+  useEffect(() => {
+    // İlerleme kaybolmasın: tarayıcıdan bu sitenin verisini silmemesini iste
+    void requestPersistentStorage();
+  }, []);
+
   return (
     <View style={[styles.outer, { backgroundColor: palette.outerBackground }]}>
       {/* Masaüstü tarayıcıda telefon genişliğinde bir sütun; telefonda tam ekran */}

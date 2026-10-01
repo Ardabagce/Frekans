@@ -19,7 +19,9 @@ export function PhotoContent({ image, caption, metaOverlay, captionSuffix = '' }
   const height = Math.round(width / ILLUSTRATION_ASPECT);
   const [open, setOpen] = useState(false);
   const win = useWindowDimensions();
-  const fullW = Math.min(win.width, 900);
+  // Hem genişliğe hem yüksekliğe sığdır (yatay telefon, kısa dizüstü pencereleri); altyazıya yer bırak
+  const maxH = win.height - (caption ? 96 : 32);
+  const fullW = Math.round(Math.max(120, Math.min(win.width, 900, maxH * ILLUSTRATION_ASPECT)));
   const fullH = Math.round(fullW / ILLUSTRATION_ASPECT);
 
   return (

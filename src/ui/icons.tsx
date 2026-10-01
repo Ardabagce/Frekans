@@ -87,16 +87,6 @@ export function ChevronDownIcon({ size = 18, color }: IconProps) {
   );
 }
 
-export function ThemeIcon({ size = 22, color }: IconProps) {
-  // Yarısı dolu daire: açık/koyu/sistem geçişi
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24">
-      <Circle cx={12} cy={12} r={8} stroke={color} strokeWidth={2} fill="none" />
-      <Path d="M12 4a8 8 0 0 1 0 16z" fill={color} />
-    </Svg>
-  );
-}
-
 export function SignalIcon({ size = 14, color }: IconProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24">
@@ -119,6 +109,28 @@ export function Ticks({ status, color, size = 16 }: { status: 'sent' | 'delivere
     <Svg width={size} height={size * 0.68} viewBox="0 0 16 11">
       <Path d="M1 5.9 4.1 9 10.6 1.8" stroke={color} strokeWidth={1.5} fill="none" strokeLinecap="round" strokeLinejoin="round" />
       <Path d="M7.9 8.4 8.5 9 15 1.8" stroke={color} strokeWidth={1.5} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  );
+}
+
+export function SettingsIcon({ size = 22, color }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24">
+      <Path
+        d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65a.5.5 0 0 0 .12-.64l-2-3.46a.5.5 0 0 0-.61-.22l-2.49 1a7.3 7.3 0 0 0-1.69-.98l-.38-2.65A.49.49 0 0 0 14 2h-4a.49.49 0 0 0-.49.42l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1a.5.5 0 0 0-.61.22l-2 3.46a.49.49 0 0 0 .12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65a.5.5 0 0 0-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46a.5.5 0 0 0-.12-.64l-2.11-1.65zM12 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z"
+        fill={color}
+      />
+    </Svg>
+  );
+}
+
+export function RestartIcon({ size = 18, color }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24">
+      <Path
+        d="M12 5V2L7 6l5 4V7a5 5 0 1 1-5 5H5a7 7 0 1 0 7-7z"
+        fill={color}
+      />
     </Svg>
   );
 }

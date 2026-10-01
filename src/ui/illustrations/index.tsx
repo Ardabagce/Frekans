@@ -7,7 +7,10 @@ import type { ComponentType } from 'react';
 
 import { DagSiluetiIllustration } from './DagSilueti';
 import { KarliPencereIllustration } from './KarliPencere';
+import type { IllustrationId } from './ids';
 import { SobaIllustration } from './Soba';
+
+export { ILLUSTRATION_IDS, type IllustrationId } from './ids';
 
 export type IllustrationProps = { width: number; height: number };
 
@@ -15,9 +18,7 @@ export const ILLUSTRATIONS = {
   'karli-pencere': KarliPencereIllustration,
   soba: SobaIllustration,
   'dag-silueti': DagSiluetiIllustration,
-} satisfies Record<string, ComponentType<IllustrationProps>>;
-
-export type IllustrationId = keyof typeof ILLUSTRATIONS;
+} satisfies Record<IllustrationId, ComponentType<IllustrationProps>>;
 
 /** Fotoğraf balonlarının en/boy oranı */
 export const ILLUSTRATION_ASPECT = 4 / 3;

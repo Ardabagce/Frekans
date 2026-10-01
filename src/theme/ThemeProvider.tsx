@@ -1,36 +1,38 @@
-import { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
-import { useColorScheme } from 'react-native';
+import { createContext, useContext, useEffect, useMemo, type ReactNode } from 'react';
+import { Platform, useColorScheme } from 'react-native';
+
+import { updateSettings, useSettings, type ThemePreference } from '@/game/settings';
 
 import { darkPalette, lightPalette, type Palette } from './palette';
 
-export type ThemePreference = 'system' | 'light' | 'dark';
+export type { ThemePreference };
 
 type ThemeContextValue = {
   palette: Palette;
   preference: ThemePreference;
   setPreference: (pref: ThemePreference) => void;
-  cyclePreference: () => void;
 };
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
-const ORDER: ThemePreference[] = ['system', 'light', 'dark'];
-
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const system = useColorScheme();
-  // Faz 2'de kalıcı ayarlara taşınacak.
-  const [preference, setPreference] = useState<ThemePreference>('system');
+  const { theme: preference } = useSettings();
 
   const value = useMemo<ThemeContextValue>(() => {
     const resolved = preference === 'system' ? (system === 'dark' ? 'dark' : 'light') : preference;
     return {
       palette: resolved === 'dark' ? darkPalette : lightPalette,
       preference,
-      setPreference,
-      cyclePreference: () =>
-        setPreference((p) => ORDER[(ORDER.indexOf(p) + 1) % ORDER.length] ?? 'system'),
+      setPreference: (theme) => updateSettings({ theme }),
     };
   }, [preference, system]);
+
+  // Web: tarayıcı çubuğu rengi uygulama çubuğuyla aynı olsun
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof document === 'undefined') return;
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', value.palette.appBar);
+  }, [value.palette.appBar]);
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }

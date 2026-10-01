@@ -31,11 +31,8 @@ describe('formatDateSeparator', () => {
     expect(formatDateSeparator(local(2026, 10, 1, 0, 5), now)).toBe('Bugün');
     expect(formatDateSeparator(local(2026, 9, 30, 23, 50), now)).toBe('Dün');
   });
-  it('son bir hafta için gün adı', () => {
-    expect(formatDateSeparator(local(2026, 9, 28), now)).toBe('Pazartesi');
-    expect(formatDateSeparator(local(2026, 9, 25), now)).toBe('Cuma');
-  });
-  it('daha eskisi için tam tarih', () => {
+  it('daha eskisi için tam tarih (gün adı değil)', () => {
+    expect(formatDateSeparator(local(2026, 9, 29), now)).toBe('29 Eylül 2026');
     expect(formatDateSeparator(local(2026, 9, 24), now)).toBe('24 Eylül 2026');
   });
 });

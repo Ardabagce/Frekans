@@ -23,6 +23,8 @@ export function presenceLabel(presence: Presence, now: number): string | null {
       return 'çevrimiçi';
     case 'typing':
       return 'yazıyor...';
+    case 'recording':
+      return 'ses kaydediyor...';
     case 'lastSeen':
       return formatLastSeen(presence.at, now);
     case 'unknown':
@@ -49,7 +51,7 @@ export function ChatHeader({ name, avatar, presence, onBack, onTitlePress }: Pro
           <BackIcon color={palette.appBarText} />
           <Avatar initials={avatar.initials} color={avatar.color} size={38} />
         </Pressable>
-        <Pressable onPress={onTitlePress} style={styles.titleArea} accessibilityRole="header">
+        <Pressable onPress={onTitlePress} style={styles.titleArea} accessibilityRole="header" testID="chat-title">
           <Text style={[styles.name, { color: palette.appBarText }]} numberOfLines={1}>
             {name}
           </Text>

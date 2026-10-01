@@ -4,6 +4,12 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { formatDuration } from '@/lib/time';
 import { useTheme } from '@/theme/ThemeProvider';
 import { MicIcon, PauseIcon, PlayIcon } from '@/ui/icons';
+import { useAppWidth } from '@/ui/layout';
+
+/** Balon satır dolgusu (8 + kuyruk 8) x2, balon en fazla %82, balon iç dolgusu 9 x2 */
+function voiceWidth(appWidth: number): number {
+  return Math.max(180, Math.min(250, Math.floor((appWidth - 32) * 0.82 - 18)));
+}
 
 const BAR_COUNT = 32;
 
@@ -39,6 +45,7 @@ export function VoiceContent({ id, durationSec, transcript, outgoing }: Props) {
   const [playing, setPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const [showTranscript, setShowTranscript] = useState(false);
+  const width = voiceWidth(useAppWidth());
   const startRef = useRef(0);
 
   useEffect(() => {
@@ -63,7 +70,7 @@ export function VoiceContent({ id, durationSec, transcript, outgoing }: Props) {
   const shown = playing || progress > 0 ? durationSec * (1 - progress) : durationSec;
 
   return (
-    <View style={styles.wrap}>
+    <View style={[styles.wrap, { width }]}>
       <View style={styles.row}>
         <Pressable
           onPress={() => setPlaying((p) => !p)}
@@ -108,7 +115,7 @@ export function VoiceContent({ id, durationSec, transcript, outgoing }: Props) {
 }
 
 const styles = StyleSheet.create({
-  wrap: { width: 250, paddingTop: 2 },
+  wrap: { paddingTop: 2 },
   row: { flexDirection: 'row', alignItems: 'center' },
   play: { width: 34, height: 34, alignItems: 'center', justifyContent: 'center' },
   waveCol: { flex: 1, marginLeft: 4 },

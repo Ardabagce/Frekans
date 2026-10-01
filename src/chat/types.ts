@@ -3,7 +3,7 @@
  * Faz 1'de sahte sürücü, Faz 2'den itibaren hikaye motoru bu tipleri üretir.
  */
 
-import type { IllustrationId } from '@/ui/illustrations';
+import type { IllustrationId } from '@/ui/illustrations/ids';
 
 export type Sender = 'character' | 'player' | 'system';
 
@@ -32,6 +32,7 @@ export type ChatMessage = {
 export type Presence =
   | { kind: 'online' }
   | { kind: 'typing' }
+  | { kind: 'recording' }
   | { kind: 'lastSeen'; at: number }
   | { kind: 'unknown' };
 

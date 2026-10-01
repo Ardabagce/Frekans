@@ -1,15 +1,21 @@
 import type { StoryMeta } from '@/engine/meta';
+import type { Story } from '@/engine/types';
+
+import { dagEvi } from './dag-evi';
+
+export type StoryEntry = StoryMeta & { story?: Story };
 
 /**
  * Hikaye kayıt defteri. Sohbet listesi bu sırayla gösterilir.
  * Kilitli hikayeler, karakter henüz "frekansı bulmadığı" için maskeli numarayla görünür.
  */
-export const STORIES: readonly StoryMeta[] = [
+export const STORIES: readonly StoryEntry[] = [
   {
-    id: 'dag-evi',
-    title: 'Dağ Evi',
-    character: { name: 'Deniz', avatar: { initials: 'D', color: '#3F7F8C' } },
+    id: dagEvi.id,
+    title: dagEvi.title,
+    character: dagEvi.character,
     locked: false,
+    story: dagEvi,
   },
   {
     id: 'gece-vardiyasi',
@@ -34,6 +40,11 @@ export const STORIES: readonly StoryMeta[] = [
   },
 ];
 
-export function getStoryMeta(id: string): StoryMeta | undefined {
+export function getStoryEntry(id: string): StoryEntry | undefined {
   return STORIES.find((s) => s.id === id);
+}
+
+/** Oynanabilir (kilitsiz ve içeriği olan) hikayeler */
+export function playableStories(): Story[] {
+  return STORIES.flatMap((s) => (!s.locked && s.story ? [s.story] : []));
 }

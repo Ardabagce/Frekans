@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   FlatList,
   StyleSheet,
@@ -9,7 +9,7 @@ import {
   type NativeSyntheticEvent,
 } from 'react-native';
 
-import { buildChatRows, type ChatRow } from '@/chat/buildItems';
+import { buildChatRows, continuesGroup, type ChatRow } from '@/chat/buildItems';
 import type { ChatMessage } from '@/chat/types';
 
 import { MessageBubble } from './MessageBubble';
@@ -21,6 +21,8 @@ type Props = {
   messages: ChatMessage[];
   typing: boolean;
   now: number;
+  /** Listenin en altında (yazıyor balonundan önce) gösterilecek ek içerik, ör. "devamı yakında" notu */
+  footer?: ReactNode;
 };
 
 /** En alta bu kadar pikselden yakınsa "en altta" sayılır */
@@ -34,7 +36,7 @@ const AUTO_SCROLL_GRACE_MS = 700;
  * - Kullanıcı yukarı kaydırmışsa: otomatik kaydırma yapılmaz, "↓ yeni mesaj" butonu çıkar.
  * - Oyuncu bir seçim yaptığında her durumda en alta inilir.
  */
-export function MessageList({ messages, typing, now }: Props) {
+export function MessageList({ messages, typing, now, footer }: Props) {
   const listRef = useRef<FlatList<ChatRow>>(null);
   const stickRef = useRef(true);
   const autoScrollUntilRef = useRef(0);
@@ -43,11 +45,19 @@ export function MessageList({ messages, typing, now }: Props) {
   const [unseen, setUnseen] = useState(0);
 
   const rows = useMemo(() => buildChatRows(messages, now), [messages, now]);
-  const lastSender = messages[messages.length - 1]?.sender;
+  // Yazıyor balonu, yerine gelecek mesajla aynı gruplama kuralıyla kuyruk alır
+  const last = messages[messages.length - 1];
+  const typingTail = !continuesGroup(last, { sender: 'character', at: now });
 
   const scrollToEnd = useCallback((animated: boolean) => {
     autoScrollUntilRef.current = Date.now() + AUTO_SCROLL_GRACE_MS;
-    listRef.current?.scrollToEnd({ animated });
+    // FlatList.scrollToEnd hedefi önbellekteki satır yüksekliklerinden hesaplar; yeni eklenen ya da
+    // büyüyen satır henüz ölçülmemişse kısa kalır. Alttaki ScrollView gerçek içerik yüksekliğini kullanır.
+    const scroller = listRef.current?.getNativeScrollRef() as unknown as {
+      scrollToEnd?: (o: { animated: boolean }) => void;
+    } | null;
+    if (scroller?.scrollToEnd) scroller.scrollToEnd({ animated });
+    else listRef.current?.scrollToEnd({ animated });
   }, []);
 
   const attach = useCallback(() => {
@@ -143,7 +153,10 @@ export function MessageList({ messages, typing, now }: Props) {
         windowSize={21}
         ListHeaderComponent={<View style={styles.top} />}
         ListFooterComponent={
-          <View style={styles.bottom}>{typing ? <TypingBubble withTail={lastSender !== 'character'} /> : null}</View>
+          <View style={styles.bottom}>
+            {footer}
+            {typing ? <TypingBubble withTail={typingTail} /> : null}
+          </View>
         }
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}

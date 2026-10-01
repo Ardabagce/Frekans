@@ -20,9 +20,12 @@
     "react-native-web": "^0.21.2"
   },
   "devDependencies": {
+    "@types/node": "^22.20.4",
     "@types/react": "~19.2.2",
     "eslint": "^9.0.0",
     "eslint-config-expo": "~57.0.2",
+    "sharp": "^0.35.5",
+    "tsx": "^4.23.15",
     "typescript": "~6.0.3",
     "vitest": "^5.0.3"
   },
@@ -34,7 +37,11 @@
     "build:web": "expo export -p web",
     "typecheck": "tsc --noEmit",
     "lint": "expo lint",
-    "test": "vitest run"
+    "test": "vitest run",
+    "icons": "node scripts/generate-icons.mjs",
+    "validate-story": "tsx scripts/validate-story.ts",
+    "story-graph": "tsx scripts/story-graph.ts",
+    "simulate-story": "tsx scripts/simulate-story.ts"
   },
   "private": true,
   "engines": {

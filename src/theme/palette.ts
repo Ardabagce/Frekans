@@ -29,8 +29,8 @@ export type Palette = {
   dateChipText: string;
   systemChip: string;
   systemChipText: string;
-  warningChip: string;
-  warningChipText: string;
+  /** "Sinyal zayıf" gibi uyarılarda sadece ikon renklenir; kutu yine gridir */
+  warningIcon: string;
   link: string;
 
   /** Alt çubuk / seçimler */
@@ -74,10 +74,9 @@ export const lightPalette: Palette = {
   tickRead: '#2A9DF4',
   dateChip: '#FFFFFF',
   dateChipText: '#54656F',
-  systemChip: '#FBF1CF',
+  systemChip: '#E1E6E8',
   systemChipText: '#54656F',
-  warningChip: '#FBE0D3',
-  warningChipText: '#7A3B22',
+  warningIcon: '#C0623A',
   link: '#0A7C8C',
 
   composerBar: '#F0F2F2',
@@ -120,10 +119,9 @@ export const darkPalette: Palette = {
   tickRead: '#53BDEB',
   dateChip: '#1A262C',
   dateChipText: '#8D9DA5',
-  systemChip: '#222B20',
-  systemChipText: '#D3C98E',
-  warningChip: '#3A231B',
-  warningChipText: '#F0B39A',
+  systemChip: '#1F2C33',
+  systemChipText: '#A9B6BC',
+  warningIcon: '#E39A78',
   link: '#5BC8D6',
 
   composerBar: '#101B20',

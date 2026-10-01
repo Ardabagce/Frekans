@@ -20,12 +20,12 @@ export const DateChip = memo(function DateChip({ label }: { label: string }) {
 export const SystemNotice = memo(function SystemNotice({ text, tone = 'info' }: { text: string; tone?: 'info' | 'warning' }) {
   const { palette } = useTheme();
   const warning = tone === 'warning';
-  const bg = warning ? palette.warningChip : palette.systemChip;
-  const fg = warning ? palette.warningChipText : palette.systemChipText;
+  const bg = palette.systemChip;
+  const fg = palette.systemChipText;
   return (
     <View style={styles.center}>
       <View style={[styles.chip, styles.system, { backgroundColor: bg }]}>
-        {warning ? <SignalIcon color={fg} size={13} /> : null}
+        {warning ? <SignalIcon color={palette.warningIcon} size={13} /> : null}
         <Text style={[styles.systemText, { color: fg }]}>{text}</Text>
       </View>
     </View>

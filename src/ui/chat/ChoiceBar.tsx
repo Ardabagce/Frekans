@@ -46,6 +46,7 @@ export function ChoiceBar({ choices, onChoose, idleHint }: Props) {
             c.locked ? (
               <View
                 key={c.id}
+                testID={`choice-locked-${c.id}`}
                 style={[styles.option, { backgroundColor: palette.lockedBackground, borderColor: 'transparent' }]}
                 accessibilityState={{ disabled: true }}
                 accessibilityLabel={`${c.text}. Kilitli: ${c.lockedReason ?? ''}`}
@@ -61,6 +62,7 @@ export function ChoiceBar({ choices, onChoose, idleHint }: Props) {
             ) : (
               <Pressable
                 key={c.id}
+                testID={`choice-${c.id}`}
                 onPress={() => onChoose(c.id)}
                 accessibilityRole="button"
                 style={({ pressed }) => [
