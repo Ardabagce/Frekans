@@ -308,13 +308,47 @@ describe('kayıt ve yeniden oynatma', () => {
     expect(r.run.pending).toEqual(run.pending);
   });
 
-  it('hikayeyle uyuşmayan kayıt: uygulanabilen kısma kadar oynatılır', () => {
+  it('hikayeden silinmiş seçim: yalnızca o noktada durur', () => {
     const r = replay(story, t0, [
       { type: 'choice', node: 'start', choice: 'yanik', at: t0 + 60_000 },
       { type: 'choice', node: 'olmayan', choice: 'x', at: t0 + 120_000 },
     ]);
     expect(r.applied).toBe(1);
-    expect(r.error).toMatch(/uyuşmuyor/);
+    expect(r.error).toMatch(/artık yok/);
+  });
+
+  it('oynanmış düğüme satır eklemek hızlı cevap veren oyuncunun kaydını kesmez', () => {
+    let run = startRun(story, t0);
+    run = applyChoice(story, run, 'yanik', choicesAt(run) + 200); // seçimler çıkar çıkmaz cevap
+    run = applyChoice(story, run, 'uyku', choicesAt(run) + 200);
+    // Yayından sonra başlangıç düğümüne uzun bir satır eklendi: seçimler artık daha geç çıkıyor
+    const edited = defineStory({
+      ...story,
+      nodes: Object.values(story.nodes).map((n) =>
+        n.id === 'start' ? { ...n, steps: [...n.steps, say('x'.repeat(120), { delay: '20s' })] } : n,
+      ),
+    });
+    const r = replay(edited, t0, run.events);
+    expect(r.error).toBeUndefined();
+    expect(r.applied).toBe(2);
+    expect(r.run.vars.injuries.yanik).toBe(true);
+    expect(r.run.pending.kind).toBe('ending');
+  });
+
+  it('dal farkı (ör. saat dilimi değişti): kayıttaki düğüme hizalanır, ilerleme silinmez', () => {
+    let run = startRun(story, t0);
+    run = applyChoice(story, run, 'yanik', choicesAt(run) + 1000);
+    // Kayıt "start2" düğümünü bekliyor; hikaye değişip "yanik" artık başka yere gidiyorsa
+    const edited = defineStory({
+      ...story,
+      nodes: Object.values(story.nodes).map((n) => (n.id === 'yanik' ? { ...n, next: 'karar' } : n)),
+    });
+    const events = [...run.events, { type: 'choice' as const, node: 'start2', choice: 'uyku', at: choicesAt(run) + 5000 }];
+    const r = replay(edited, t0, events);
+    expect(r.error).toBeUndefined();
+    expect(r.applied).toBe(2);
+    expect(r.realigned).toBe(1);
+    expect(r.run.pending.kind).toBe('ending');
   });
 
   it('kayıt kodu gidiş-dönüş', () => {

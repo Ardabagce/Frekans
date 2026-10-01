@@ -1,8 +1,16 @@
 /**
  * Bir hikayenin oyun deposu: kaydı yükler, motoru çalıştırır, zamanı ilerletir,
  * arayüze anlık görüntü (snapshot) verir. Arayüz `useGame(storyId)` ile bağlanır.
+ *
+ * İLERLEME KAYBOLMAMA KURALLARI
+ *  1. Her yazmadan önce depo okunur; başka sekme/oturum daha yeni bir kayıt yazdıysa
+ *     önce o alınır, eski hâl asla yeninin üzerine yazılmaz.
+ *  2. Bir kayıt kısmen oynatılabilirse (hikayeden seçim silindiyse) orijinali, hiç
+ *     üzerine yazılmayan ayrı bir anahtarda saklanır.
+ *  3. Okunamayan kayıt silinmez; karantina anahtarına kopyalanır.
+ *  4. Kod ile yüklemeden önceki ilerleme ayrı bir anahtarda saklanır.
  */
-import { advancedTo, realDelay, virtualNow, withSpeed, type ClockState } from '@/engine/clock';
+import { advancedTo, isRealClock, realDelay, virtualNow, withSpeed, type ClockState } from '@/engine/clock';
 import {
   applyChoiceInPlace,
   cloneRun,
@@ -39,80 +47,163 @@ export type GameSnapshot = {
 };
 
 export type IncomingListener = (storyId: string, count: number) => void;
+/** Kayıt değiştiğinde (seçim, yeniden başlatma, kod yükleme, saat ayarı): sunucu yedeği ve push planı için */
+export type ChangeListener = (store: GameStore, reason: ChangeReason) => void;
+export type ChangeReason = 'load' | 'choice' | 'restart' | 'import' | 'clock' | 'jump' | 'reset' | 'sync';
+
+export type ImportResult = { ok: boolean; message: string };
 
 /** Zamanlayıcı en fazla bu kadar bekler (saat etiketi vb. tazelensin) */
 const MAX_TIMER_MS = 30_000;
 /** "Anında" modunda olaylar arası gerçek bekleme */
 const INSTANT_STEP_MS = 350;
+/** Saklanan kırpılmış/karantina kopyası sayısı */
+const KEEP_COPIES = 3;
 
 const saveKey = (id: string) => `frekans:save:${id}`;
 const backupKey = (id: string) => `frekans:save:${id}:yedek`;
+const preImportKey = (id: string) => `frekans:save:${id}:ice-aktarma-oncesi`;
+const copiesKey = (id: string, kind: 'kesik' | 'bozuk') => `frekans:save:${id}:${kind}`;
 
 export class GameStore {
-  private save: SaveData;
-  private run: RunState;
+  private save!: SaveData;
+  private run!: RunState;
   private snap: GameSnapshot;
   private listeners = new Set<() => void>();
   private timer: ReturnType<typeof setTimeout> | null = null;
   private replayError: string | null = null;
   private lastCharacterCount = -1;
   private unsubExternal: (() => void) | null = null;
+  /** Bu deponun depoda gördüğü/yazdığı son kaydın updatedAt değeri */
+  private lastSynced = 0;
 
   static incoming = new Set<IncomingListener>();
+  static changes = new Set<ChangeListener>();
 
   constructor(
     readonly story: Story,
     private storage: KeyValueStorage,
   ) {
-    const loaded = this.load();
-    this.save = loaded.save;
-    this.run = loaded.run;
+    this.loadFromStorage();
     this.snap = this.computeSnapshot();
     this.lastCharacterCount = this.characterCount(this.snap.view);
   }
 
   // ------------------------------------------------------------------ yükleme
 
-  private load(): { save: SaveData; run: RunState } {
-    const id = this.story.id;
-    const primary = parseSave(this.storage.get(saveKey(id)), id);
-    const save = primary ?? parseSave(this.storage.get(backupKey(id)), id);
-    if (!save) {
-      const fresh = newSave(id, this.story.version, Date.now());
-      this.write(fresh, false);
-      return { save: fresh, run: startRun(this.story, fresh.startedAt) };
-    }
-    if (!primary) console.warn('[Frekans] Ana kayıt okunamadı, yedekten dönüldü');
-    return this.rebuild(save);
+  private readStored(): { raw: string | null; save: SaveData | null } {
+    const raw = this.storage.get(saveKey(this.story.id));
+    return { raw, save: parseSave(raw, this.story.id) };
   }
 
-  /** Kayıttan sohbeti yeniden kurar; hikaye değiştiği için uygulanamayan olayları kırpar */
+  /** Bir kopyayı (en fazla KEEP_COPIES) silinmeyecek bir listeye ekler */
+  private keepCopy(kind: 'kesik' | 'bozuk', raw: string) {
+    const key = copiesKey(this.story.id, kind);
+    let list: { at: number; raw: string }[] = [];
+    try {
+      list = JSON.parse(this.storage.get(key) ?? '[]') as typeof list;
+    } catch {
+      list = [];
+    }
+    if (list.some((c) => c.raw === raw)) return;
+    list.push({ at: Date.now(), raw });
+    this.storage.set(key, JSON.stringify(list.slice(-KEEP_COPIES)));
+  }
+
+  private loadFromStorage() {
+    const id = this.story.id;
+    const { raw, save: primary } = this.readStored();
+    if (raw && !primary) {
+      console.warn('[Frekans] Ana kayıt okunamadı; karantinaya alındı');
+      this.keepCopy('bozuk', raw);
+    }
+    const backup = primary ? null : parseSave(this.storage.get(backupKey(id)), id);
+    const save = primary ?? backup;
+    if (!save) {
+      const fresh = newSave(id, this.story.version, Date.now());
+      this.adopt(fresh, startRun(this.story, fresh.startedAt));
+      this.writeRaw(fresh);
+      return;
+    }
+    const { save: s, run } = this.rebuild(save);
+    this.adopt(s, run);
+    // Yedekten dönüldüyse hemen ana kayda yaz (bozuk kayıt yedeğe dönmesin)
+    if (!primary || s !== save) this.writeRaw(s);
+    else this.lastSynced = save.updatedAt;
+  }
+
+  private adopt(save: SaveData, run: RunState) {
+    this.save = save;
+    this.run = run;
+  }
+
+  /** Kayıttan sohbeti yeniden kurar. Uygulanamayan olay varsa orijinali saklanır. */
   private rebuild(save: SaveData): { save: SaveData; run: RunState } {
     const result = replay(this.story, save.startedAt, save.events);
+    this.replayError = null;
+    if (result.realigned > 0) {
+      console.info(`[Frekans] Kayıt güncel hikayeye hizalandı (${result.realigned} nokta)`);
+    }
     if (result.error) {
       this.replayError = result.error;
       console.warn(`[Frekans] Kayıt kısmen oynatılabildi (${result.applied}/${save.events.length}): ${result.error}`);
-      // Orijinali yedekte tut, kırpılmış hâliyle devam et
-      this.storage.set(backupKey(save.storyId), JSON.stringify(save));
-      const trimmed = { ...save, events: save.events.slice(0, result.applied) };
-      this.storage.set(saveKey(save.storyId), JSON.stringify(trimmed));
-      return { save: trimmed, run: result.run };
+      this.keepCopy('kesik', JSON.stringify(save));
+      return { save: { ...save, events: result.run.events.slice() }, run: result.run };
     }
     return { save, run: result.run };
   }
 
-  private write(save: SaveData, keepBackup = true) {
+  /** Depoya yaz; önceki sağlam ana kaydı yedeğe al */
+  private writeRaw(save: SaveData, rotateBackup = true) {
     const id = this.story.id;
-    if (keepBackup) {
+    if (rotateBackup) {
       const current = this.storage.get(saveKey(id));
-      if (current) this.storage.set(backupKey(id), current);
+      // Yalnızca okunabilen bir kayıt yedeğe geçer (bozuk kayıt sağlam yedeğin yerini almasın)
+      if (current && parseSave(current, id)) this.storage.set(backupKey(id), current);
     }
-    this.storage.set(saveKey(id), JSON.stringify({ ...save, updatedAt: Date.now() }));
+    const updatedAt = Math.max(Date.now(), this.lastSynced + 1);
+    this.save = { ...save, updatedAt };
+    this.storage.set(saveKey(id), JSON.stringify(this.save));
+    this.lastSynced = updatedAt;
   }
 
-  private persist() {
-    this.save = { ...this.save, events: this.run.events.slice() };
-    this.write(this.save);
+  /**
+   * Depoda bu deponun bilmediği daha yeni bir kayıt var mı? Varsa onu al.
+   * Her değiştiren işlemden önce çağrılır: eski bir sekme yeni ilerlemenin üzerine yazamaz.
+   */
+  private syncFromStorage(): boolean {
+    const { save } = this.readStored();
+    if (!save || save.updatedAt <= this.lastSynced) return false;
+    const { save: s, run } = this.rebuild(save);
+    this.adopt(s, run);
+    this.lastSynced = save.updatedAt;
+    this.lastCharacterCount = -1; // geri dönüşte ses çalma
+    return true;
+  }
+
+  private persist(reason: ChangeReason) {
+    this.writeRaw({ ...this.save, events: this.run.events.slice() });
+    this.emitChange(reason);
+  }
+
+  private emitChange(reason: ChangeReason) {
+    GameStore.changes.forEach((l) => {
+      try {
+        l(this, reason);
+      } catch (e) {
+        console.warn('[Frekans] değişiklik dinleyicisi hatası', e);
+      }
+    });
+  }
+
+  // ------------------------------------------------------------------ dışa açık okuma
+
+  getSave(): SaveData {
+    return { ...this.save, events: this.run.events.slice() };
+  }
+
+  getRun(): RunState {
+    return this.run;
   }
 
   // ------------------------------------------------------------------ abonelik
@@ -130,9 +221,15 @@ export class GameStore {
 
   private activate() {
     this.unsubExternal = onExternalChange((key) => {
-      if (key === saveKey(this.story.id)) this.reloadFromStorage();
+      if (key === saveKey(this.story.id) && this.syncFromStorage()) {
+        this.refresh();
+        this.emitChange('sync');
+      }
     });
+    // Dinleyicisizken kaçırılmış değişiklikleri al
+    if (this.syncFromStorage()) this.emitChange('sync');
     this.refresh();
+    this.emitChange('load');
   }
 
   private deactivate() {
@@ -142,21 +239,14 @@ export class GameStore {
     this.unsubExternal = null;
   }
 
-  /** Başka sekmede ilerleme olduysa onu al */
-  private reloadFromStorage() {
-    const s = parseSave(this.storage.get(saveKey(this.story.id)), this.story.id);
-    if (!s || s.updatedAt <= this.save.updatedAt) return;
-    const { save, run } = this.rebuild(s);
-    this.save = save;
-    this.run = run;
-    this.lastCharacterCount = -1; // geri dönüşte ses çalma
-    this.refresh();
-  }
-
   // ------------------------------------------------------------------ zaman
 
   now(): number {
     return virtualNow(this.save.clock);
+  }
+
+  get clock(): ClockState {
+    return this.save.clock;
   }
 
   private characterCount(view: GameView): number {
@@ -204,8 +294,9 @@ export class GameStore {
 
     // Son düğüme ulaşıldıysa kaydet
     if (view.ending && !this.save.endingsSeen.includes(view.ending.id)) {
-      this.save = { ...this.save, endingsSeen: [...this.save.endingsSeen, view.ending.id] };
-      this.write(this.save);
+      this.syncFromStorage();
+      this.save = { ...this.save, endingsSeen: [...new Set([...this.save.endingsSeen, view.ending.id])] };
+      this.writeRaw(this.save);
     }
 
     this.listeners.forEach((l) => l());
@@ -216,7 +307,7 @@ export class GameStore {
       const target = view.nextChangeAt;
       this.timer = setTimeout(() => {
         this.save = { ...this.save, clock: advancedTo(this.save.clock, target) };
-        this.write(this.save, false);
+        this.writeRaw(this.save, false);
         this.refresh();
       }, INSTANT_STEP_MS);
       return;
@@ -229,6 +320,11 @@ export class GameStore {
   // ------------------------------------------------------------------ oyuncu
 
   choose(choiceId: string): boolean {
+    if (this.syncFromStorage()) {
+      // Başka bir yerde ilerleme olmuş; ekran güncellensin, oyuncu yeni duruma göre seçsin
+      this.refresh();
+      return false;
+    }
     const next = cloneRun(this.run);
     try {
       applyChoiceInPlace(this.story, next, choiceId, this.now());
@@ -241,7 +337,7 @@ export class GameStore {
     }
     this.run = next;
     this.save = { ...this.save, lastReadAt: this.now() };
-    this.persist();
+    this.persist('choice');
     this.refresh();
     return true;
   }
@@ -250,51 +346,85 @@ export class GameStore {
     const msgs = this.snap.view.messages;
     const last = msgs[msgs.length - 1];
     if (!last || last.at <= this.save.lastReadAt) return;
-    this.save = { ...this.save, lastReadAt: last.at };
-    this.write(this.save, false);
+    this.syncFromStorage();
+    this.save = { ...this.save, lastReadAt: Math.max(this.save.lastReadAt, last.at) };
+    this.writeRaw(this.save, false);
     this.snap = { ...this.snap, unread: 0 };
     this.listeners.forEach((l) => l());
   }
 
-  /** Hikayeyi baştan başlat (görülen sonlar korunur) */
+  /** Hikayeyi baştan başlat (görülen sonlar korunur; önceki oyun yedekte kalır) */
   restart() {
-    this.write(this.save); // mevcut hâli yedeğe düşsün
-    this.save = newSave(this.story.id, this.story.version, this.now(), this.save);
-    this.run = startRun(this.story, this.save.startedAt);
+    this.syncFromStorage();
+    this.keepCopy('kesik', JSON.stringify(this.getSave()));
+    const fresh = newSave(this.story.id, this.story.version, this.now(), this.save);
+    this.adopt(fresh, startRun(this.story, fresh.startedAt));
     this.replayError = null;
     this.lastCharacterCount = 0;
-    this.write(this.save, false);
+    this.writeRaw(fresh);
+    this.emitChange('restart');
     this.refresh();
   }
 
   exportCode(): string {
-    return encodeSaveCode({ ...this.save, events: this.run.events.slice() });
+    return encodeSaveCode(this.getSave());
   }
 
-  /** Kayıt kodunu yükler; hata varsa açıklamasını döner */
-  importCode(code: string): string | null {
+  /** Kayıt kodunu yükler. Mevcut ilerleme ayrı bir anahtarda saklanır; görülen sonlar birleştirilir. */
+  importCode(code: string): ImportResult {
     const decoded = decodeSaveCode(code, this.story.version);
-    if ('error' in decoded) return decoded.error;
-    if (decoded.storyId !== this.story.id) return 'Bu kod başka bir hikayeye ait.';
-    const result = replay(this.story, decoded.startedAt, decoded.events);
-    if (result.error && result.applied === 0 && decoded.events.length > 0) {
-      return 'Kayıt bu hikaye sürümüyle uyuşmuyor.';
-    }
-    this.write(this.save); // mevcut ilerleme yedeğe
-    const { save, run } = this.rebuild(decoded);
-    this.save = save;
-    this.run = run;
+    if ('error' in decoded) return { ok: false, message: decoded.error };
+    if (decoded.storyId !== this.story.id) return { ok: false, message: 'Bu kod başka bir hikayeye ait.' };
+    this.syncFromStorage();
+    this.storage.set(preImportKey(this.story.id), JSON.stringify(this.getSave()));
+    const merged: SaveData = {
+      ...decoded,
+      endingsSeen: [...new Set([...this.save.endingsSeen, ...decoded.endingsSeen])],
+    };
+    const { save, run } = this.rebuild(merged);
+    this.adopt(save, run);
     this.lastCharacterCount = -1;
-    this.write(this.save, false);
+    this.writeRaw(save);
+    this.emitChange('import');
     this.refresh();
-    return null;
+    const total = decoded.events.length;
+    if (this.replayError) {
+      return {
+        ok: true,
+        message: `Kayıt kısmen yüklendi (${save.events.length}/${total} adım). Önceki ilerlemen ayrıca saklandı.`,
+      };
+    }
+    return { ok: true, message: 'Kayıt yüklendi. Kaldığın yerden devam edebilirsin.' };
+  }
+
+  /** Sunucudaki yedek bu cihazdakinden ileri ise onu al (Faz 5: kurtarma kodu) */
+  adoptRemote(remote: SaveData): boolean {
+    if (remote.storyId !== this.story.id) return false;
+    this.syncFromStorage();
+    const local = this.getSave();
+    const sameGame = remote.startedAt === local.startedAt;
+    const ahead = remote.events.length > local.events.length || (!sameGame && remote.updatedAt > local.updatedAt);
+    if (!ahead) return false;
+    this.storage.set(preImportKey(this.story.id), JSON.stringify(local));
+    const { save, run } = this.rebuild({
+      ...remote,
+      endingsSeen: [...new Set([...local.endingsSeen, ...remote.endingsSeen])],
+    });
+    this.adopt(save, run);
+    this.lastCharacterCount = -1;
+    this.writeRaw(save);
+    this.emitChange('import');
+    this.refresh();
+    return true;
   }
 
   // ------------------------------------------------------------------ geliştirici
 
   setSpeed(speed: number, instant = false) {
+    this.syncFromStorage();
     this.save = { ...this.save, clock: { ...withSpeed(this.save.clock, speed), instant } };
-    this.write(this.save, false);
+    this.writeRaw(this.save, false);
+    this.emitChange('clock');
     this.refresh();
   }
 
@@ -310,12 +440,15 @@ export class GameStore {
   }
 
   private advanceTo(t: number) {
+    this.syncFromStorage();
     this.save = { ...this.save, clock: advancedTo(this.save.clock, t) };
-    this.write(this.save, false);
+    this.writeRaw(this.save, false);
+    this.emitChange('clock');
     this.refresh();
   }
 
   jumpTo(nodeId: string): string | null {
+    this.syncFromStorage();
     const next = cloneRun(this.run);
     try {
       jumpInPlace(this.story, next, nodeId, this.now());
@@ -323,21 +456,27 @@ export class GameStore {
       return e instanceof Error ? e.message : String(e);
     }
     this.run = next;
-    this.persist();
+    this.persist('jump');
     this.refresh();
     return null;
   }
 
-  /** Her şeyi sil: kayıt, yedek, görülen sonlar, saat ayarı */
+  /** Her şeyi sil: kayıt, yedek, görülen sonlar, saat ayarı (kırpılmış/karantina kopyaları kalır) */
   hardReset() {
-    this.storage.remove(saveKey(this.story.id));
+    this.keepCopy('kesik', JSON.stringify(this.getSave()));
     this.storage.remove(backupKey(this.story.id));
-    this.save = newSave(this.story.id, this.story.version, Date.now());
-    this.save = { ...this.save, playthrough: 1, endingsSeen: [] };
-    this.run = startRun(this.story, this.save.startedAt);
+    const fresh = { ...newSave(this.story.id, this.story.version, Date.now()), playthrough: 1, endingsSeen: [] };
+    this.adopt(fresh, startRun(this.story, fresh.startedAt));
     this.replayError = null;
     this.lastCharacterCount = 0;
-    this.write(this.save, false);
+    this.lastSynced = 0;
+    this.writeRaw(fresh, false);
+    this.emitChange('reset');
     this.refresh();
+  }
+
+  /** Saat gerçek mi (push planlama yalnızca gerçek ya da hızlandırılmış saatte anlamlı) */
+  isRealTime(): boolean {
+    return isRealClock(this.save.clock);
   }
 }

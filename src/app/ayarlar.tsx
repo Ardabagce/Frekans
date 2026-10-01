@@ -146,9 +146,9 @@ export default function SettingsScreen() {
                       label="Yükle"
                       primary
                       onPress={() => {
-                        const err = store.importCode(importText);
-                        setImportMsg(err ? { ok: false, text: err } : { ok: true, text: 'Kayıt yüklendi. Kaldığın yerden devam edebilirsin.' });
-                        if (!err) setImportText('');
+                        const result = store.importCode(importText);
+                        setImportMsg({ ok: result.ok, text: result.message });
+                        if (result.ok) setImportText('');
                       }}
                     />
                   </View>

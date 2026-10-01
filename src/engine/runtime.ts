@@ -291,7 +291,8 @@ function planNudges(story: Story, node: StoryNode, entry: number, choicesAt: num
   for (let k = 0; k < count; k++) {
     const at = choicesAt + toMs(story.nudgeAfter[k]!);
     if (inClockWindow(at, story.quietHours.from, story.quietHours.to)) continue;
-    const text = texts[k]!;
+    // Sessiz saat yüzünden biri atlansa bile ilk gönderilen dürtme hep ilk metindir
+    const text = texts[nudges.length]!;
     const typingFrom = Math.max(choicesAt + 1, at - typingDurationMs(text));
     nudges.push({ id: `${entry}.n${k}`, at, typingFrom, text });
   }
@@ -333,19 +334,10 @@ export function resolveChoices(story: Story, run: RunState): ChoiceOption[] {
     });
 }
 
-/** Oyuncunun seçimi. `run` yerinde değiştirilir; geçersizse EngineError fırlatır. */
-export function applyChoiceInPlace(story: Story, run: RunState, choiceId: string, t: number): void {
+/** `t` anına kadar ekranda belirmiş dürtmeleri kalıcı mesaja çevirir */
+function materializeNudges(run: RunState, t: number): void {
   const p = run.pending;
-  if (p.kind !== 'choice') throw new EngineError('Şu an seçim beklenmiyor');
-  if (t < p.at) throw new EngineError('Seçimler henüz görünmedi');
-  const node = getNode(story, p.nodeId);
-  const choice = node?.choices?.find((c) => c.id === choiceId);
-  if (!node || !choice) throw new EngineError(`Seçim bulunamadı: ${p.nodeId}/${choiceId}`);
-  const option = resolveChoices(story, run).find((c) => c.id === choiceId);
-  if (!option) throw new EngineError('Bu seçim görünür değil');
-  if (option.locked) throw new EngineError('Bu seçim kilitli');
-
-  // Cevaptan önce düşmüş dürtmeler kalıcı mesaj olur
+  if (p.kind !== 'choice') return;
   for (const n of p.nudges) {
     if (n.at > t) continue;
     run.messages.push({
@@ -359,6 +351,49 @@ export function applyChoiceInPlace(story: Story, run: RunState, choiceId: string
     });
     run.activity.push(n.typingFrom, n.at);
   }
+  p.nudges = p.nudges.filter((n) => n.at > t);
+}
+
+/** `t` sonrasına planlanmış her şeyi siler (geliştirici atlaması ve kayıt hizalama için) */
+function truncateAfter(run: RunState, t: number): void {
+  materializeNudges(run, t);
+  run.messages = run.messages.filter((m) => m.at <= t);
+  run.aways = run.aways.filter((a) => a.from <= t).map((a) => (a.to > t ? { ...a, to: t } : a));
+  run.activity = run.activity.filter((x) => x <= t);
+  run.activity.push(t);
+}
+
+export type ChoiceOptions = {
+  /**
+   * Kayıttan yeniden oynatırken: kilit/görünürlük ve "seçimler henüz görünmedi"
+   * denetimlerini atla. Oyuncu bu seçimi bir zamanlar geçerli olarak yaptı; hikaye
+   * metni ya da cihazın saat dilimi değişti diye ilerlemesi silinmemeli.
+   */
+  force?: boolean;
+};
+
+/** Oyuncunun seçimi. `run` yerinde değiştirilir; geçersizse EngineError fırlatır. */
+export function applyChoiceInPlace(
+  story: Story,
+  run: RunState,
+  choiceId: string,
+  t: number,
+  opts: ChoiceOptions = {},
+): void {
+  const p = run.pending;
+  if (p.kind !== 'choice') throw new EngineError('Şu an seçim beklenmiyor');
+  if (t < p.at && !opts.force) throw new EngineError('Seçimler henüz görünmedi');
+  const node = getNode(story, p.nodeId);
+  const choice = node?.choices?.find((c) => c.id === choiceId);
+  if (!node || !choice) throw new EngineError(`Seçim bulunamadı: ${p.nodeId}/${choiceId}`);
+  if (!opts.force) {
+    const option = resolveChoices(story, run).find((c) => c.id === choiceId);
+    if (!option) throw new EngineError('Bu seçim görünür değil');
+    if (option.locked) throw new EngineError('Bu seçim kilitli');
+  }
+
+  // Cevaptan önce düşmüş dürtmeler kalıcı mesaj olur
+  materializeNudges(run, t);
 
   const online = presenceAt(run, t).kind !== 'lastSeen';
   const key = `p${run.events.length + 1}`;
@@ -390,41 +425,55 @@ export function applyChoice(story: Story, run: RunState, choiceId: string, t: nu
  */
 export function jumpInPlace(story: Story, run: RunState, nodeId: string, t: number): void {
   if (!getNode(story, nodeId)) throw new EngineError(`Düğüm bulunamadı: ${nodeId}`);
-  run.messages = run.messages.filter((m) => m.at <= t);
-  run.aways = run.aways.filter((a) => a.from <= t).map((a) => (a.to > t ? { ...a, to: t } : a));
-  run.activity = run.activity.filter((x) => x <= t);
-  run.activity.push(t);
+  truncateAfter(run, t);
   run.events.push({ type: 'jump', node: nodeId, at: t });
   scheduleFrom(story, run, nodeId, t);
 }
 
 export type ReplayResult = {
   run: RunState;
-  /** Başarıyla uygulanan olay sayısı; hikaye değiştiyse daha az olabilir */
+  /** Uygulanan olay sayısı; yalnızca kayıttaki düğüm/seçim hikayeden silindiyse eksik kalır */
   applied: number;
+  /** Hikaye ya da saat dilimi farkı yüzünden kayıttaki düğüme hizalanan olay sayısı */
+  realigned: number;
   error?: string;
 };
 
-/** Kayıttaki olay dizisinden sohbeti baştan kurar */
+/**
+ * Kayıttaki olay dizisinden sohbeti baştan kurar. Esnektir: hikaye metni ya da cihazın
+ * saat dilimi değiştiği için yol başka bir düğüme varmışsa ilerleme silinmez; kayıttaki
+ * düğüme hizalanır ve seçim yine uygulanır. Yalnızca seçim hikayeden tamamen
+ * kaldırılmışsa durur.
+ */
 export function replay(story: Story, startedAt: number, events: readonly PlayerEvent[]): ReplayResult {
   const run = startRun(story, startedAt);
   let applied = 0;
+  let realigned = 0;
   for (const ev of events) {
     try {
       if (ev.type === 'choice') {
-        if (run.pending.kind !== 'choice' || run.pending.nodeId !== ev.node) {
-          throw new EngineError(`Kayıt hikayeyle uyuşmuyor: beklenen ${ev.node}, bulunan ${run.pending.nodeId}`);
+        const node = getNode(story, ev.node);
+        if (!node?.choices?.some((c) => c.id === ev.choice)) {
+          throw new EngineError(`Kayıttaki seçim hikayede artık yok: ${ev.node}/${ev.choice}`);
         }
-        applyChoiceInPlace(story, run, ev.choice, ev.at);
+        if (run.pending.kind !== 'choice' || run.pending.nodeId !== ev.node) {
+          truncateAfter(run, ev.at);
+          run.pending = { kind: 'choice', nodeId: ev.node, at: ev.at, nudges: [] };
+          run.vars.visited[ev.node] = (run.vars.visited[ev.node] ?? 0) + 1;
+          run.trail.push({ nodeId: ev.node, at: ev.at });
+          realigned++;
+        }
+        // Seçimler artık daha geç görünüyorsa cevabı o ana kaydır (sıra bozulmasın)
+        applyChoiceInPlace(story, run, ev.choice, Math.max(ev.at, run.pending.at), { force: true });
       } else {
         jumpInPlace(story, run, ev.node, ev.at);
       }
       applied++;
     } catch (e) {
-      return { run, applied, error: e instanceof Error ? e.message : String(e) };
+      return { run, applied, realigned, error: e instanceof Error ? e.message : String(e) };
     }
   }
-  return { run, applied };
+  return { run, applied, realigned };
 }
 
 // ---------------------------------------------------------------------------
