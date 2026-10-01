@@ -27,7 +27,7 @@ export function EndingBar({ ending, endingsSeen, endingsTotal, onRestart }: Prop
   const [confirm, setConfirm] = useState(false);
 
   return (
-    <View style={[styles.bar, { backgroundColor: palette.composerBar, paddingBottom: 12 + insets.bottom }]}>
+    <View style={[styles.bar, { backgroundColor: palette.composerBar, paddingBottom: Math.max(12, insets.bottom) }]}>
       <Text style={[styles.kind, { color: palette.accent }]}>{KIND_LABEL[ending.kind].toLocaleUpperCase('tr')}</Text>
       <Text style={[styles.title, { color: palette.text }]}>{ending.title}</Text>
       <Text style={[styles.summary, { color: palette.textSecondary }]}>{ending.summary}</Text>

@@ -6,6 +6,7 @@ import { useNow } from '@/lib/useNow';
 import { useTheme } from '@/theme/ThemeProvider';
 import { AppBar } from '@/ui/AppBar';
 import { SettingsIcon, SignalIcon } from '@/ui/icons';
+import { InstallBanner } from '@/ui/install/InstallBanner';
 import { ChatListItem } from '@/ui/list/ChatListItem';
 import { STORIES, type StoryEntry } from '@stories/index';
 
@@ -55,6 +56,7 @@ export default function ChatListScreen() {
       <FlatList
         data={STORIES}
         keyExtractor={(s) => s.id}
+        ListHeaderComponent={<InstallBanner />}
         renderItem={({ item }) =>
           !item.locked && item.story ? (
             <PlayableRow entry={item} now={now} />

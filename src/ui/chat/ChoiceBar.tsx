@@ -33,7 +33,7 @@ export function ChoiceBar({ choices, onChoose, idleHint }: Props) {
   }, [choices, hasChoices, enter]);
 
   return (
-    <View style={[styles.bar, { backgroundColor: palette.composerBar, paddingBottom: 8 + insets.bottom }]}>
+    <View style={[styles.bar, { backgroundColor: palette.composerBar, paddingBottom: Math.max(8, insets.bottom) }]}>
       {hasChoices ? (
         <Animated.View
           style={{

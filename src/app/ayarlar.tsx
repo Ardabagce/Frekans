@@ -9,6 +9,8 @@ import { storage } from '@/game/storage';
 import { useTheme } from '@/theme/ThemeProvider';
 import { AppBar } from '@/ui/AppBar';
 import { FormButton as Button, FormRow as Row, FormSection as Section } from '@/ui/form';
+import { isStandalone } from '@/pwa/pwa';
+import { InstallGuide } from '@/ui/install/InstallGuide';
 import { playableStories } from '@stories/index';
 
 const THEMES: { id: ThemePreference; label: string }[] = [
@@ -43,6 +45,7 @@ export default function SettingsScreen() {
   const [importText, setImportText] = useState('');
   const [importMsg, setImportMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [confirmRestart, setConfirmRestart] = useState(false);
+  const [guide, setGuide] = useState(false);
 
   const goBack = () => (router.canGoBack() ? router.back() : router.replace('/'));
 
@@ -68,6 +71,12 @@ export default function SettingsScreen() {
             })}
           </View>
         </Section>
+
+        {Platform.OS === 'web' && !isStandalone() ? (
+          <Section title="UYGULAMA" note="Ana ekrana eklenince tam ekran açılır; bildirimler de ancak böyle çalışır (özellikle iPhone'da).">
+            <Row label="Ana ekrana ekle" sub="Adım adım rehber" right={<Button label="Göster" onPress={() => setGuide(true)} />} />
+          </Section>
+        ) : null}
 
         <Section title="UYGULAMA AÇIKKEN" note="Uygulama kapalıyken gelen mesajlar için bildirimler ayrıca ayarlanır.">
           <Row
@@ -181,6 +190,7 @@ export default function SettingsScreen() {
         ) : null}
 
         <Text style={[styles.footer, { color: C.textSecondary }]}>Frekans · sürüm {story?.version ?? '—'}</Text>
+        {guide ? <InstallGuide visible onClose={() => setGuide(false)} /> : null}
       </ScrollView>
     </View>
   );
@@ -199,6 +209,6 @@ const styles = StyleSheet.create({
   codeBox: { marginTop: 10, borderWidth: 1, borderRadius: 10, padding: 10, gap: 6 },
   code: { fontSize: 12, fontFamily: Platform.select({ web: 'ui-monospace, monospace', default: undefined }) },
   importBox: { marginTop: 10, gap: 6 },
-  input: { borderWidth: 1, borderRadius: 10, padding: 10, minHeight: 80, fontSize: 13, textAlignVertical: 'top' },
+  input: { borderWidth: 1, borderRadius: 10, padding: 10, minHeight: 80, fontSize: 16, textAlignVertical: 'top' },
   footer: { textAlign: 'center', fontSize: 12 },
 });

@@ -169,7 +169,7 @@ const styles = StyleSheet.create({
   statTrack: { flex: 1, height: 8, borderRadius: 4, overflow: 'hidden' },
   statFill: { height: 8, borderRadius: 4 },
   statValue: { width: 30, textAlign: 'right', fontSize: 13, fontVariant: ['tabular-nums'] },
-  input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, height: 40, fontSize: 14 },
+  input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, height: 40, fontSize: 16 },
   nodeRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth },
   nodeDay: { width: 24, fontSize: 12, fontWeight: '700' },
   nodeId: { fontSize: 13.5, fontWeight: '600', maxWidth: '45%' },

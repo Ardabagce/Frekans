@@ -3,23 +3,55 @@
   <head>
     <meta charset="utf-8" />
     <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
+    <!-- Uygulama hissi: yakınlaştırma kapalı, çentik/ana çubuk alanına kadar çizim -->
     <meta
       name="viewport"
-      content="width=device-width, initial-scale=1, viewport-fit=cover, shrink-to-fit=no"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
     />
+    <title>Frekans</title>
+    <meta name="description" content="Zayıf bir sinyal üzerinden sana ulaşan birine yardım et." />
     <meta name="theme-color" content="#0E5E63" />
     <meta name="color-scheme" content="light dark" />
-    <title>Frekans</title>
+
+    <!-- PWA -->
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+    <meta name="mobile-web-app-capable" content="yes" />
+
+    <!-- iOS: ana ekrana eklenince tam ekran açılsın, durum çubuğu içeriğin üstünde dursun -->
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Frekans" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="format-detection" content="telephone=no" />
+
     <style id="expo-reset">
       html,
       body {
         height: 100%;
-        background-color: #0b1418;
+        margin: 0;
+        background-color: #0e5e63;
+      }
+      html {
+        /* Sayfanın tamamı sabit: iOS'ta lastik bant kayması ve kenarlarda boşluk olmasın */
+        position: fixed;
+        inset: 0;
+        overflow: hidden;
+        -webkit-text-size-adjust: 100%;
+        text-size-adjust: 100%;
       }
       body {
         overflow: hidden;
         overscroll-behavior: none;
         -webkit-tap-highlight-color: transparent;
+        -webkit-touch-callout: none;
+      }
+      /* Çift dokunma ve iki parmakla yakınlaştırma kapalı; kaydırma serbest */
+      html,
+      body,
+      #root,
+      #root * {
+        touch-action: pan-x pan-y;
       }
       #root {
         display: flex;
@@ -27,6 +59,11 @@
         flex: 1;
       }
     </style>
+    <script>
+      // iOS Safari "user-scalable=no"yu yok sayar; iki parmak hareketini burada durdur
+      document.addEventListener('gesturestart', function (e) { e.preventDefault(); }, { passive: false });
+      document.addEventListener('gesturechange', function (e) { e.preventDefault(); }, { passive: false });
+    </script>
   </head>
 
   <body>

@@ -32,6 +32,9 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (Platform.OS !== 'web' || typeof document === 'undefined') return;
     document.querySelector('meta[name="theme-color"]')?.setAttribute('content', value.palette.appBar);
+    // Çentik / durum çubuğu ve kenar alanları uygulama çubuğu renginde kalsın
+    document.documentElement.style.backgroundColor = value.palette.appBar;
+    document.body.style.backgroundColor = value.palette.appBar;
   }, [value.palette.appBar]);
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
