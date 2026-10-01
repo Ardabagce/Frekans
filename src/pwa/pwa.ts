@@ -34,12 +34,15 @@ export function registerServiceWorker() {
   if (!isWeb || !('serviceWorker' in navigator)) return;
   // Geliştirme sunucusunda (expo start) önbellek kafa karıştırmasın; yalnızca derlenmiş sürümde
   if (process.env.NODE_ENV !== 'production') return;
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch((e) => console.warn('[Frekans] SW kaydı başarısız', e));
-  });
-  if (document.readyState === 'complete') {
-    navigator.serviceWorker.register('/sw.js').catch(() => {});
-  }
+  // updateViaCache: 'none' → tarayıcı sw.js'yi HTTP önbelleğinden değil her seferinde sunucudan denetler
+  navigator.serviceWorker
+    .register('/sw.js', { updateViaCache: 'none' })
+    .then((reg) => {
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') reg.update().catch(() => {});
+      });
+    })
+    .catch((e) => console.warn('[Frekans] SW kaydı başarısız', e));
 }
 
 // ---- Android/Chrome kurulum istemi ----

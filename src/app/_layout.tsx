@@ -7,12 +7,14 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useIncomingAlerts } from '@/game/alerts';
 import { requestPersistentStorage } from '@/game/storage';
 import { registerServiceWorker } from '@/pwa/pwa';
+import { useAutoUpdate } from '@/pwa/updates';
 import { ThemeProvider, useTheme } from '@/theme/ThemeProvider';
 import { APP_MAX_WIDTH } from '@/ui/layout';
 
 function Shell() {
   const { palette } = useTheme();
   useIncomingAlerts();
+  useAutoUpdate();
   useEffect(() => {
     // İlerleme kaybolmasın: tarayıcıdan bu sitenin verisini silmemesini iste
     void requestPersistentStorage();

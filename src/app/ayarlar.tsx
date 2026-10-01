@@ -10,6 +10,7 @@ import { useTheme } from '@/theme/ThemeProvider';
 import { AppBar } from '@/ui/AppBar';
 import { FormButton as Button, FormRow as Row, FormSection as Section } from '@/ui/form';
 import { isStandalone } from '@/pwa/pwa';
+import { BUILD_ID } from '@/pwa/updates';
 import { InstallGuide } from '@/ui/install/InstallGuide';
 import { playableStories } from '@stories/index';
 
@@ -189,7 +190,7 @@ export default function SettingsScreen() {
           </Section>
         ) : null}
 
-        <Text style={[styles.footer, { color: C.textSecondary }]}>Frekans · sürüm {story?.version ?? '—'}</Text>
+        <Text style={[styles.footer, { color: C.textSecondary }]}>Frekans · hikaye {story?.version ?? '—'} · derleme {BUILD_ID}</Text>
         {guide ? <InstallGuide visible onClose={() => setGuide(false)} /> : null}
       </ScrollView>
     </View>
