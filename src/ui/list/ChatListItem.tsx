@@ -11,6 +11,8 @@ import { BanIcon, CameraIcon, LockIcon, MicIcon, PinIcon, Ticks } from '@/ui/ico
 export type ChatPreview = {
   last?: ChatMessage;
   typing: boolean;
+  /** Sesli mesaj kaydediliyor */
+  recording?: boolean;
   unread: number;
 };
 
@@ -56,7 +58,9 @@ function ChatListItemImpl({ story, preview, now, onPress }: Props) {
       </View>
     );
   } else if (preview?.typing) {
-    line = <Text style={[styles.preview, { color: palette.accent }]}>yazıyor...</Text>;
+    line = (
+      <Text style={[styles.preview, { color: palette.accent }]}>{preview.recording ? 'ses kaydediyor...' : 'yazıyor...'}</Text>
+    );
   } else if (last) {
     const { icon, text } = previewParts(last, palette.textSecondary);
     const status: DeliveryStatus | undefined = last.sender === 'player' ? last.status : undefined;

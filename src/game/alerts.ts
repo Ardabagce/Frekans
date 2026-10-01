@@ -63,7 +63,10 @@ export function playMessageSound() {
 
 export function vibrate() {
   try {
-    (globalThis as { navigator?: Navigator }).navigator?.vibrate?.(55);
+    const nav = (globalThis as { navigator?: Navigator & { userActivation?: { hasBeenActive: boolean } } }).navigator;
+    // Kullanıcı sayfaya hiç dokunmadıysa tarayıcı titreşimi engeller ve konsola hata yazar
+    if (nav?.userActivation && !nav.userActivation.hasBeenActive) return;
+    nav?.vibrate?.(55);
   } catch {
     /* desteklenmiyor */
   }

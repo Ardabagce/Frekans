@@ -3,7 +3,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { Presence } from '@/chat/types';
 import { formatLastSeen } from '@/lib/time';
-import { useNow } from '@/lib/useNow';
 import { useTheme } from '@/theme/ThemeProvider';
 import { Avatar } from '@/ui/Avatar';
 import { BackIcon } from '@/ui/icons';
@@ -12,6 +11,8 @@ type Props = {
   name: string;
   avatar: { initials: string; color: string };
   presence: Presence;
+  /** Oyunun şimdiki zamanı (geliştirici saatinde gerçek saatten farklı olabilir) */
+  now: number;
   onBack: () => void;
   /** Başlığa dokunma (geliştirici modu için 7 dokunuş sayacı Faz 2'de buraya bağlanır) */
   onTitlePress?: () => void;
@@ -32,10 +33,9 @@ export function presenceLabel(presence: Presence, now: number): string | null {
   }
 }
 
-export function ChatHeader({ name, avatar, presence, onBack, onTitlePress }: Props) {
+export function ChatHeader({ name, avatar, presence, now, onBack, onTitlePress }: Props) {
   const { palette } = useTheme();
   const insets = useSafeAreaInsets();
-  const now = useNow();
   const status = presenceLabel(presence, now);
 
   return (

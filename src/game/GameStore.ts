@@ -26,7 +26,7 @@ import type { Vars } from '@/engine/state';
 import type { Story } from '@/engine/types';
 
 import { decodeSaveCode, encodeSaveCode, newSave, parseSave, type SaveData } from './save';
-import { onExternalChange, type KeyValueStorage } from './storage';
+import { onExternalChange, onResume, type KeyValueStorage } from './storage';
 
 export type GameSnapshot = {
   storyId: string;
@@ -220,12 +220,21 @@ export class GameStore {
   getSnapshot = (): GameSnapshot => this.snap;
 
   private activate() {
-    this.unsubExternal = onExternalChange((key) => {
+    const offStorage = onExternalChange((key) => {
       if (key === saveKey(this.story.id) && this.syncFromStorage()) {
         this.refresh();
         this.emitChange('sync');
       }
     });
+    // Uygulama arka plandan dönünce zamanlayıcılar donmuş olabilir: hemen yeniden hesapla
+    const offResume = onResume(() => {
+      if (this.syncFromStorage()) this.emitChange('sync');
+      this.refresh();
+    });
+    this.unsubExternal = () => {
+      offStorage();
+      offResume();
+    };
     // Dinleyicisizken kaçırılmış değişiklikleri al
     if (this.syncFromStorage()) this.emitChange('sync');
     this.refresh();
@@ -292,11 +301,12 @@ export class GameStore {
     }
     this.lastCharacterCount = count;
 
-    // Son düğüme ulaşıldıysa kaydet
+    // Son düğüme ulaşıldıysa kaydet; sayaç hemen doğru görünsün diye görüntüyü tazele
     if (view.ending && !this.save.endingsSeen.includes(view.ending.id)) {
       this.syncFromStorage();
       this.save = { ...this.save, endingsSeen: [...new Set([...this.save.endingsSeen, view.ending.id])] };
       this.writeRaw(this.save);
+      this.snap = this.computeSnapshot();
     }
 
     this.listeners.forEach((l) => l());

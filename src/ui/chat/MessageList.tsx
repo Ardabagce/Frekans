@@ -23,12 +23,18 @@ type Props = {
   now: number;
   /** Listenin en altında (yazıyor balonundan önce) gösterilecek ek içerik, ör. "devamı yakında" notu */
   footer?: ReactNode;
+  /** Değişince (ör. son kartı çıkınca) liste en alta sabitlenir */
+  pinKey?: string | null;
 };
 
 /** En alta bu kadar pikselden yakınsa "en altta" sayılır */
 const BOTTOM_THRESHOLD = 72;
 /** Programatik kaydırma bitmediyse bu süreden sonra yine de kullanıcı kontrolüne bırak */
 const AUTO_SCROLL_GRACE_MS = 700;
+/** Açılışta liste yerleşirken: kaydırmalar animasyonsuz, ara konumlar kullanıcı niyeti sayılmaz */
+const SETTLE_MS = 2000;
+/** Alt çubuk yüksekliği değiştikten sonra bu süre içindeki kaymalar kullanıcı niyeti sayılmaz */
+const LAYOUT_GRACE_MS = 450;
 
 /**
  * Sohbet akışı.
@@ -36,13 +42,17 @@ const AUTO_SCROLL_GRACE_MS = 700;
  * - Kullanıcı yukarı kaydırmışsa: otomatik kaydırma yapılmaz, "↓ yeni mesaj" butonu çıkar.
  * - Oyuncu bir seçim yaptığında her durumda en alta inilir.
  */
-export function MessageList({ messages, typing, now, footer }: Props) {
+export function MessageList({ messages, typing, now, footer, pinKey }: Props) {
   const listRef = useRef<FlatList<ChatRow>>(null);
   const stickRef = useRef(true);
   const autoScrollUntilRef = useRef(0);
   const prevLenRef = useRef(messages.length);
   const [detached, setDetached] = useState(false);
   const [unseen, setUnseen] = useState(0);
+  const [mountedAt] = useState(() => Date.now());
+  const layoutChangedAtRef = useRef(0);
+  // Uzun sohbet en alttan açılsın diye ilk çizimde (makul bir sınıra kadar) tüm satırları çiz
+  const [initialCount] = useState(() => Math.min(Math.max(messages.length + 20, 40), 400));
 
   const rows = useMemo(() => buildChatRows(messages, now), [messages, now]);
   // Yazıyor balonu, yerine gelecek mesajla aynı gruplama kuralıyla kuyruk alır
@@ -97,14 +107,17 @@ export function MessageList({ messages, typing, now, footer }: Props) {
         if (!stickRef.current || unseen > 0) attach();
         return;
       }
-      // Kendi başlattığımız kaydırma sürerken ara konumlar kullanıcı niyeti sayılmaz.
-      if (Date.now() < autoScrollUntilRef.current) return;
+      // Kendi başlattığımız kaydırma, açılıştaki yerleşme ya da alt çubuğun boyut değişimi sürerken
+      // ara konumlar kullanıcı niyeti sayılmaz.
+      const now = Date.now();
+      if (now < autoScrollUntilRef.current) return;
+      if (now - mountedAt < SETTLE_MS || now - layoutChangedAtRef.current < LAYOUT_GRACE_MS) return;
       if (stickRef.current) {
         stickRef.current = false;
         setDetached(true);
       }
     },
-    [attach, unseen],
+    [attach, unseen, mountedAt],
   );
 
   const onBeginDrag = useCallback(() => {
@@ -115,17 +128,33 @@ export function MessageList({ messages, typing, now, footer }: Props) {
   const firstLayoutDone = useRef(false);
   const onContentSizeChange = useCallback(() => {
     if (!stickRef.current) return;
-    scrollToEnd(firstLayoutDone.current);
+    const settling = Date.now() - mountedAt < SETTLE_MS;
+    scrollToEnd(firstLayoutDone.current && !settling);
     firstLayoutDone.current = true;
-  }, [scrollToEnd]);
+  }, [scrollToEnd, mountedAt]);
 
   // Alt çubuk (seçimler) büyüyüp küçüldüğünde görünür alan değişir.
   const onLayout = useCallback(
     (_e: LayoutChangeEvent) => {
+      layoutChangedAtRef.current = Date.now();
       if (stickRef.current) scrollToEnd(false);
     },
     [scrollToEnd],
   );
+
+  // Son kartı gibi alt çubuğu büyüten bir değişimde son mesajlar kartın altında kalmasın
+  useEffect(() => {
+    if (!pinKey) return;
+    stickRef.current = true;
+    scrollToEnd(false);
+    const timers = [0, 150, 500, 1000].map((ms) =>
+      setTimeout(() => {
+        if (ms === 0) attach();
+        scrollToEnd(false);
+      }, ms),
+    );
+    return () => timers.forEach(clearTimeout);
+  }, [pinKey, attach, scrollToEnd]);
 
   const renderItem: ListRenderItem<ChatRow> = useCallback(({ item }) => {
     if (item.type === 'date') return <DateChip label={item.label} />;
@@ -148,7 +177,7 @@ export function MessageList({ messages, typing, now, footer }: Props) {
         scrollEventThrottle={32}
         onContentSizeChange={onContentSizeChange}
         onLayout={onLayout}
-        initialNumToRender={40}
+        initialNumToRender={initialCount}
         maxToRenderPerBatch={30}
         windowSize={21}
         ListHeaderComponent={<View style={styles.top} />}

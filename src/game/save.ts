@@ -136,6 +136,12 @@ export function decodeSaveCode(code: string, storyVersion: string): SaveData | {
   try {
     const c = JSON.parse(fromBase64Url(trimmed.slice(CODE_PREFIX.length))) as CompactSave;
     if (!isStr(c.s) || !isNum(c.t) || !Array.isArray(c.e)) return { error: 'Kayıt kodu eksik ya da bozuk.' };
+    // Zaman damgaları makul olmalı: 2025'ten sonra, (geliştirici saati dahil) şimdiden en fazla 2 gün ileride
+    const clock = parseClock(c.c);
+    const latest = Math.max(Date.now(), clock.anchorVirtual + (Date.now() - clock.anchorReal) * clock.speed) + 2 * 86_400_000;
+    const earliest = Date.UTC(2025, 0, 1);
+    if (c.t < earliest || c.t > latest) return { error: 'Kayıt kodu eksik ya da bozuk.' };
+    let prev = c.t;
     const events: PlayerEvent[] = [];
     for (const e of c.e) {
       if (e.length === 3 && isStr(e[0]) && isStr(e[1]) && isNum(e[2])) {
@@ -143,6 +149,9 @@ export function decodeSaveCode(code: string, storyVersion: string): SaveData | {
       } else if (e.length === 2 && isStr(e[0]) && isNum(e[1])) {
         events.push({ type: 'jump', node: e[0], at: e[1] });
       } else return { error: 'Kayıt kodu bozuk.' };
+      const at = events[events.length - 1]!.at;
+      if (at < prev || at > latest) return { error: 'Kayıt kodu bozuk.' };
+      prev = at;
     }
     return {
       v: SAVE_VERSION,

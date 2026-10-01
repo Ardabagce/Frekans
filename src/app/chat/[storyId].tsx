@@ -49,6 +49,7 @@ function idleHint(snap: GameSnapshot, name: string): string {
   const { view } = snap;
   if (view.draft) return 'Hikayenin devamı yakında…';
   if (view.error) return 'Bir şeyler ters gitti';
+  if (view.messages.length === 0) return 'Bağlantı bekleniyor…';
   switch (view.presence.kind) {
     case 'typing':
       return `${name} yazıyor…`;
@@ -86,12 +87,19 @@ function ActiveChat({ store, snap, onBack }: { store: GameStore; snap: GameSnaps
         name={character.name}
         avatar={character.avatar}
         presence={view.presence}
+        now={view.now}
         onBack={onBack}
         onTitlePress={onTitlePress}
       />
       <View style={styles.body}>
         <Wallpaper />
-        <MessageList messages={view.messages} typing={typing} now={view.now} footer={footer} />
+        <MessageList
+          messages={view.messages}
+          typing={typing}
+          now={view.now}
+          footer={footer}
+          pinKey={view.ending?.id ?? null}
+        />
       </View>
       {view.ending ? (
         <EndingBar
@@ -112,12 +120,14 @@ function ActiveChat({ store, snap, onBack }: { store: GameStore; snap: GameSnaps
 
 function LockedStory({ title, onBack }: { title?: string; onBack: () => void }) {
   const { palette } = useTheme();
+  const [openedAt] = useState(() => Date.now());
   return (
     <View style={styles.screen}>
       <ChatHeader
         name={title ?? 'Bilinmeyen frekans'}
         avatar={{ initials: '?', color: '#56636A' }}
         presence={{ kind: 'unknown' }}
+        now={openedAt}
         onBack={onBack}
       />
       <View style={styles.body}>

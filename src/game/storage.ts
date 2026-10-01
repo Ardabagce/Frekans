@@ -85,6 +85,30 @@ export async function requestPersistentStorage(): Promise<boolean> {
   }
 }
 
+/**
+ * Uygulama öne geldiğinde (sekme görünür oldu, sayfa önbellekten döndü, pencere odaklandı).
+ * Mobil tarayıcılar arka planda zamanlayıcıları dondurur; dönüşte durum hemen tazelenmeli.
+ */
+export function onResume(listener: () => void): () => void {
+  if (typeof document === 'undefined' || typeof window === 'undefined') return () => {};
+  let last = 0;
+  const fire = () => {
+    if (document.visibilityState !== 'visible') return;
+    const now = Date.now();
+    if (now - last < 300) return; // aynı dönüşte birden çok olay
+    last = now;
+    listener();
+  };
+  document.addEventListener('visibilitychange', fire);
+  window.addEventListener('pageshow', fire);
+  window.addEventListener('focus', fire);
+  return () => {
+    document.removeEventListener('visibilitychange', fire);
+    window.removeEventListener('pageshow', fire);
+    window.removeEventListener('focus', fire);
+  };
+}
+
 /** Başka bir sekme aynı anahtarı değiştirdiğinde haber verir (web) */
 export function onExternalChange(listener: (key: string) => void): () => void {
   const w = globalThis as { addEventListener?: Window['addEventListener']; removeEventListener?: Window['removeEventListener'] };

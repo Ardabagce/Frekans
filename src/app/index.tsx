@@ -22,9 +22,10 @@ function PlayableRow({ entry, now }: { entry: StoryEntry; now: number }) {
       preview={{
         last: visible[visible.length - 1],
         typing: presence === 'typing' || presence === 'recording',
+        recording: presence === 'recording',
         unread: snap?.unread ?? 0,
       }}
-      now={now}
+      now={snap?.view.now ?? now}
       onPress={() => router.push({ pathname: '/chat/[storyId]', params: { storyId: entry.id } })}
     />
   );
